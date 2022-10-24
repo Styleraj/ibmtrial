@@ -1,34 +1,36 @@
 from telegram.ext import MessageFilter
 from telegram import Message
-from bot import AUTHORIZED_CHATS, SUDO_USERS, OWNER_ID
+from bot import user_data, OWNER_ID
 
 
 class CustomFilters:
     class __OwnerFilter(MessageFilter):
         def filter(self, message: Message):
-            return bool(message.from_user.id == OWNER_ID)
+            return message.from_user.id == OWNER_ID
 
     owner_filter = __OwnerFilter()
 
     class __AuthorizedUserFilter(MessageFilter):
         def filter(self, message: Message):
-            id = message.from_user.id
-            return bool(id in AUTHORIZED_CHATS or id in SUDO_USERS or id == OWNER_ID)
+            uid = message.from_user.id
+            return uid == OWNER_ID or uid in user_data and (user_data[uid].get('is_auth') or user_data[uid].get('is_sudo'))
 
     authorized_user = __AuthorizedUserFilter()
 
     class __AuthorizedChat(MessageFilter):
         def filter(self, message: Message):
-            return bool(message.chat.id in AUTHORIZED_CHATS)
+            uid = message.chat.id
+            return uid in user_data and user_data[uid].get('is_auth')
 
     authorized_chat = __AuthorizedChat()
 
     class __SudoUser(MessageFilter):
         def filter(self, message: Message):
-            return bool(message.from_user.id in SUDO_USERS)
+            uid = message.from_user.id
+            return uid in user_data and user_data[uid].get('is_sudo')
 
     sudo_user = __SudoUser()
 
-    def _owner_query(user_id):
-        return bool(user_id == OWNER_ID or user_id in SUDO_USERS)
-
+    @staticmethod
+    def owner_query(uid):
+        return uid == OWNER_ID or uid in user_data and user_data[uid].get('is_sudo')
