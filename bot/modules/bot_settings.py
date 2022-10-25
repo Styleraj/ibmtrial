@@ -1,11 +1,11 @@
 from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, Filters
 from functools import partial
 from time import time
-from os import remove, replace, rename
+from os import remove, rename, path as ospath
 from subprocess import run as srun, Popen
 
 from bot import config_dict, dispatcher, DB_URI, MAX_SPLIT_SIZE, DRIVES_IDS, DRIVES_NAMES, INDEX_URLS, aria2, GLOBAL_EXTENSION_FILTER, LOGGER, status_reply_dict_lock, Interval
-from bot.helper.telegram_helper.message_utils import sendMessage, sendMarkup, editMessage, deleteMessage, update_all_messages
+from bot.helper.telegram_helper.message_utils import sendMarkup, editMessage, deleteMessage, update_all_messages
 from bot.helper.telegram_helper.filters import CustomFilters
 from bot.helper.telegram_helper.bot_commands import BotCommands
 from bot.helper.telegram_helper.button_build import ButtonMaker
@@ -84,11 +84,10 @@ def edit_variable(update, context, omsg, key):
     elif key == 'TORRENT_TIMEOUT':
         value = int(value)
         config_dict[key] = value
-        aria2.set_global_option({'bt-stop-timeout': value})
+        aria2.set_global_options({'bt-stop-timeout': value})
     elif key == 'LEECH_SPLIT_SIZE':
         value = int(value)
-        if value > MAX_SPLIT_SIZE:
-            value = MAX_SPLIT_SIZE
+        value = min(value, MAX_SPLIT_SIZE)
         config_dict[key] = value
     elif key == 'SERVER_PORT':
         value = int(value)
@@ -107,6 +106,8 @@ def edit_variable(update, context, omsg, key):
         initiate_search_tools()
     elif value.isdigit():
         value = int(value)
+        config_dict[key] = value
+    else:
         config_dict[key] = value
     update_buttons(omsg, 'var')
     if DB_URI:
@@ -147,7 +148,7 @@ def upload_file(update, context, omsg):
             doc_path = '.netrc'
         srun(["cp", ".netrc", "/root/.netrc"])
         srun(["chmod", "600", ".netrc"])
-        aria2.set_global_option({'netrc-path': '/usr/src/app/.netrc'})
+        aria2.set_global_options({'netrc-path': '/usr/src/app/.netrc'})
     if '@github.com' in config_dict['UPSTREAM_REPO']:
         buttons = ButtonMaker()
         msg = 'Push to UPSTREAM_REPO ?'
@@ -193,7 +194,7 @@ def edit_bot_settings(update, context):
             GLOBAL_EXTENSION_FILTER.clear()
             GLOBAL_EXTENSION_FILTER.append('.aria2')
         elif data[2] == 'TORRENT_TIMEOUT':
-            aria2.set_global_option({'bt-stop-timeout': 0})
+            aria2.set_global_options({'bt-stop-timeout': 0})
         elif data[2] == 'BASE_URL':
             srun(["pkill", "-9", "-f", "gunicorn"])
         elif data[2] == 'SERVER_PORT':
@@ -258,7 +259,7 @@ def edit_bot_settings(update, context):
         query.answer()
         srun([f"git add -f {data[2]} \
                 && git commit -sm botsettings -q \
-                && git push origin {UPSTREAM_BRANCH} -q"], shell=True)
+                && git push origin {config_dict['UPSTREAM_BRANCH']} -q"], shell=True)
         query.message.delete()
         query.message.reply_to_message.delete()
     elif data[1] == 'qbit':
