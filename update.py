@@ -2,7 +2,7 @@ from logging import FileHandler, StreamHandler, INFO, basicConfig, error as log_
 from os import path as ospath, environ
 from subprocess import run as srun
 from requests import get as rget
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 from pymongo import MongoClient
 
 if ospath.exists('log.txt'):
@@ -10,8 +10,8 @@ if ospath.exists('log.txt'):
         f.truncate(0)
 
 basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    handlers=[FileHandler('log.txt'), StreamHandler()],
-                    level=INFO)
+            handlers=[FileHandler('log.txt'), StreamHandler()],
+            level=INFO)
 
 load_dotenv('config.env', override=True)
 
@@ -27,23 +27,28 @@ if len(BOT_TOKEN) == 0:
     log_error("BOT_TOKEN variable is missing! Exiting now")
     exit(1)
 
-bot_id = int(BOT_TOKEN.split(':', 1)[0])
+bot_id = BOT_TOKEN.split(':', 1)[0]
 
-DB_URI = environ.get('DATABASE_URL', '')
-if len(DB_URI) == 0:
-    DB_URI = None
+DATABASE_URL = environ.get('DATABASE_URL', '')
+if len(DATABASE_URL) == 0:
+    DATABASE_URL = None
 
-if DB_URI is not None:
-    conn = MongoClient(DB_URI)
+if DATABASE_URL is not None:
+    conn = MongoClient(DATABASE_URL)
     db = conn.mltb
-    if config_dict := db.settings.config.find_one({'_id': bot_id}):  #retrun config dict (all env vars)
+    old_config = db.settings.deployConfig.find_one({'_id': bot_id})
+    config_dict = db.settings.config.find_one({'_id': bot_id})
+    if old_config is not None:
+        del old_config['_id']
+    if (old_config is not None and old_config == dict(dotenv_values('config.env')) or old_config is None) \
+            and config_dict is not None:
         environ['UPSTREAM_REPO'] = config_dict['UPSTREAM_REPO']
         environ['UPSTREAM_BRANCH'] = config_dict['UPSTREAM_BRANCH']
     conn.close()
 
 UPSTREAM_REPO = environ.get('UPSTREAM_REPO', '')
 if len(UPSTREAM_REPO) == 0:
-   UPSTREAM_REPO = None
+    UPSTREAM_REPO = None
 
 UPSTREAM_BRANCH = environ.get('UPSTREAM_BRANCH', '')
 if len(UPSTREAM_BRANCH) == 0:
@@ -65,4 +70,5 @@ if UPSTREAM_REPO is not None:
     if update.returncode == 0:
         log_info('Successfully updated with latest commit from UPSTREAM_REPO')
     else:
-        log_error('Something went wrong while updating, check UPSTREAM_REPO if valid or not!')
+        log_error(
+            'Something went wrong while updating, check UPSTREAM_REPO if valid or not!')
