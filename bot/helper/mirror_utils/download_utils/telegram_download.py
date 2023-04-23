@@ -106,9 +106,9 @@ class TelegramDownloadHelper:
             message = await user.get_messages(chat_id=message.chat.id, message_ids=message.id)
 
         media = message.document or message.photo or message.video or message.audio or \
-
             message.voice or message.video_note or message.sticker or message.animation or None
 
+            
         if media is not None:
 
             async with global_lock:
