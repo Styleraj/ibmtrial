@@ -91,4 +91,102 @@ class TelegramDownloadHelper:
         if download is not None:
             await self.__onDownloadComplete()
         elif not self.__is_cancelled:
-            await self.__on
+            await self.__onDownloadError('Internal error occurred')
+
+    async def add_download(self, message, path, filename):
+
+        if IS_PREMIUM_USER:
+
+            if not self.__listener.isSuperGroup:
+
+                await sendMessage(message, 'Use SuperGroup to download with User!')
+
+                return
+
+            message = await user.get_messages(chat_id=message.chat.id, message_ids=message.id)
+
+        media = message.document or message.photo or message.video or message.audio or \
+
+            message.voice or message.video_note or message.sticker or message.animation or None
+
+        if media is not None:
+
+            async with global_lock:
+
+                download = media.file_unique_id not in GLOBAL_GID
+
+            if download:
+
+                if filename == "":
+
+                    name = media.file_name if hasattr(
+
+                        media, 'file_name') else 'None'
+
+                else:
+
+                    name = filename
+
+                    path = path + name
+
+                size = media.file_size
+
+                gid = media.file_unique_id
+
+                msg, button = await stop_duplicate_check(name, self.__listener)
+
+                if msg:
+
+                    await sendMessage(self.__listener.message, msg, button)
+
+                    return
+
+                added_to_queue, event = await is_queued(self.__listener.uid)
+
+                if added_to_queue:
+
+                    LOGGER.info(f"Added to Queue/Download: {name}")
+
+                    async with download_dict_lock:
+
+                        download_dict[self.__listener.uid] = QueueStatus(
+
+                            name, size, gid, self.__listener, 'dl')
+
+                    await self.__listener.onDownloadStart()
+
+                    await sendStatusMessage(self.__listener.message)
+
+                    await event.wait()
+
+                    async with download_dict_lock:
+
+                        if self.__listener.uid not in download_dict:
+
+                            return
+
+                    from_queue = True
+
+                else:
+
+                    from_queue = False
+
+                await self.__onDownloadStart(name, size, gid, from_queue)
+
+                await self.__download(message, path)
+
+            else:
+
+                await self.__onDownloadError('File already being downloaded!')
+
+        else:
+
+            await self.__onDownloadError('No document in the replied message')
+
+    async def cancel_download(self):
+
+        self.__is_cancelled = True
+
+        LOGGER.info(
+
+            f'Cancelling download on user request: name: {self.name} id: {self.__id}')
